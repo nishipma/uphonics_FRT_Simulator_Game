@@ -1,8 +1,6 @@
-import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-matplotlib.rcParams['keymap.save'] = [] # Disable key press saving, unbinds s key
-matplotlib.rcParams['keymap.fullscreen'] = [] # Disable key press fullscreen, unbinds f key
+import asyncio
 
 class Display:
     def __init__(self, variables):
@@ -13,16 +11,16 @@ class Display:
         self.ax.set_title("Live Input Values")
         self.ax.set_ylabel("Value")
 
-    def update_bars(self):
+    def update_bars(self, _):
         """Update the heights of the bars based on the current variable values."""
         for bar, value in zip(self.bars, self.variables.values()):
             bar.set_height(value)
 
-    def animate(self, i):
-        """Animation function to redraw the plot."""
-        self.update_bars()
+    async def start_async(self):
+        """Asynchronous plotting."""
+        ani = FuncAnimation(self.fig, self.update_bars, interval=100, cache_frame_data=False)
 
-    def start(self):
-        """Start the live plot."""
-        ani = FuncAnimation(self.fig, self.animate, interval=100)
-        plt.show()
+        # Keep the event loop running while the plot is open
+        while plt.fignum_exists(self.fig.number):
+            plt.pause(0.1)  # Allow matplotlib to update the plot
+            await asyncio.sleep(0.1)  # Yield control to the asyncio event loop
