@@ -26,7 +26,7 @@ async def main():
         'FRT On': {'value':0}
     }
 
-    control_variables = {'Plotting_Colour': 'blue'}
+    control_variables = {'Plotting_Colour': '#ff0000'}
 
     # Path to the CSV file
     csv_file = os.path.join("..", "data", "detuning.csv")

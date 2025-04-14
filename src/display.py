@@ -2,8 +2,7 @@ from matplotlib.animation import FuncAnimation
 from collections import deque
 import asyncio
 import matplotlib.pyplot as plt
-import sys
-import time
+import numpy as np
 
 class Display:
     def __init__(self, variables,control_variables):
@@ -23,18 +22,20 @@ class Display:
         self.ax_pg_vs_detuning.set_title("Pg vs Detuning")
         self.ax_pg_vs_detuning.set_xlabel("Detuning")
         self.ax_pg_vs_detuning.set_ylabel("Pg")
-        self.pg_vs_detuning_line, = self.ax_pg_vs_detuning.plot([], [], 'r.', label="Pg vs Detuning")
+        self.pg_vs_detuning_scatter = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.',label="Pg vs Detuning")
+        #self.pg_vs_detuning_line, = self.ax_pg_vs_detuning.plot([], [], 'r.', label="Pg vs Detuning")
         self.ax_pg_vs_detuning.legend()
 
         # Data for Pg vs detuning
         maxlen = 1130
         self.detuning_data = deque(maxlen=maxlen)
+        self.pg_colours = deque(maxlen=maxlen)
         self.pg_data = deque(maxlen=maxlen)
 
-    @property
-    def plotting_colour(self):
-        """PLotting Colour"""
-        return self.control_variables['Plotting_Colour']
+    # @property
+    # def plotting_colour(self):
+    #     """PLotting Colour"""
+    #     return self.control_variables['Plotting_Colour']
 
     def on_close(self, event):
         """Handle the close event of the figure."""
@@ -109,16 +110,6 @@ class Display:
             qe_value = self.variables['Qe']['value']
             self.qe_bar[0].set_height(qe_value)
 
-    # def update_pg_vs_detuning(self):
-    #     """Update the Pg vs detuning plot."""
-    #     # Update only the most recent point
-    #     if len(self.detuning_data) > 0 and len(self.pg_data) > 0:
-    #         print(self.plotting_colour)
-    #         self.pg_vs_detuning_line.set_color(self.plotting_color)
-    #         self.pg_vs_detuning_line.set_xdata(self.detuning_data)
-    #         self.pg_vs_detuning_line.set_ydata(self.pg_data)
-    #         self.ax_pg_vs_detuning.relim()
-    #         self.ax_pg_vs_detuning.autoscale_view()
 
     async def start_async(self, queue):
         """Asynchronous plotting without blitting."""
@@ -127,11 +118,14 @@ class Display:
             self.update_bars(_)
             if len(self.detuning_data) > 0 and len(self.pg_data) > 0:
                 # Update the line data with the latest detuning and Pg values
-                self.pg_vs_detuning_line.set_color(self.plotting_colour)
-                self.pg_vs_detuning_line.set_data(self.detuning_data, self.pg_data)
-                self.ax_pg_vs_detuning.relim()  # Recalculate limits
-                self.ax_pg_vs_detuning.autoscale_view()  # Autoscale the view
-
+                self.pg_vs_detuning_scatter.set_offsets(np.column_stack((self.detuning_data, self.pg_data)))
+                self.pg_vs_detuning_scatter.set_color(self.pg_colours)
+                # Manually update the axes limits
+                self.ax_pg_vs_detuning.set_xlim(min(self.detuning_data), max(self.detuning_data))
+                self.ax_pg_vs_detuning.set_ylim(min(self.pg_data), max(self.pg_data))
+                # self.ax_pg_vs_detuning.relim()  # Recalculate limits
+                # self.ax_pg_vs_detuning.autoscale_view()  # Autoscale the view
+                
         # Use FuncAnimation without blitting
         ani = FuncAnimation(
             self.fig,
@@ -153,16 +147,21 @@ class Display:
             #Process the batch
             for data in batch:
                 detuning = data["Detuning"]
+                colour = self.control_variables['Plotting_Colour']
                 pg = data["Pg"]
 
                 # Append the new data to the circular buffers
+                self.pg_colours.append(colour)
                 self.detuning_data.append(detuning)
                 self.pg_data.append(pg)
+
+                # Debug prints
+                print(f"Appended detuning: {detuning}, pg: {pg}, colour: {colour}")
             
             # Allow matplotlib to update the plot
             plt.pause(0.001)
             await asyncio.sleep(0)
-        #plt.show()
+            #plt.show()
 
 ###
     # def __init__(self, variables):

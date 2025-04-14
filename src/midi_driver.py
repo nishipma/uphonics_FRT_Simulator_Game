@@ -7,7 +7,7 @@ import time
 
 class MidiDriver:
     def __init__(self, variables,control_variables):
-        self.plotting_colour = control_variables['Plotting_Colour']
+        self.control_variables = control_variables
         self.last_update_time = 0  # Track the last time the color was updated
         self.color_index = 0  # Index for the color wheel
         
@@ -22,7 +22,7 @@ class MidiDriver:
 
     def get_next_color(self):
         """Generate the next color from a color wheel."""
-        num_colors = 100  # Number of distinct colors
+        num_colors = 10  # Number of distinct colors
         colormap = cm.get_cmap('hsv', num_colors)  # Use the HSV color wheel
         color = colormap(self.color_index % num_colors)  # Get the next color
         self.color_index += 1
@@ -58,7 +58,7 @@ class MidiDriver:
                     #update the colour
                     current_time = time.time()
                     if current_time - self.last_update_time > 0.2:  # Check if 0.2 seconds have passed
-                        self.plotting_colour = self.get_next_color()
+                        self.control_variables['Plotting_Colour'] = self.get_next_color()
                         self.last_update_time = current_time
                     for event in midi_events:
                         data = event[0]
