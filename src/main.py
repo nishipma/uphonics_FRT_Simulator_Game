@@ -18,23 +18,29 @@ async def main():
     }
 
     # Initialize variables with default values and ranges
-    variables = {
+    input_variables = {
         'FoM': {'value': 20, 'range': variable_ranges['FoM']},
         'uphonics_range': {'value': 20, 'range': variable_ranges['uphonics_range']},
-        'Qe': {'value': 10**6, 'range': variable_ranges['Qe']},
+        'Qe': {'value': 10**7, 'range': variable_ranges['Qe']},
         'tuning_range': {'value': 25, 'range': variable_ranges['tuning_range']},
         'FRT On': {'value':0}
     }
 
-    control_variables = {'Plotting_Colour': '#ff0000'}
+    calculated_variables = {
+        'Plotting_Colour': '#ff0000',
+        'Qe_opt': {'value': 0},
+        'Qe_opt_FRT': {'value': 0},
+        'QL': {'value': 0},
+        'QL_FRT': {'value': 0},
+    }
 
     # Path to the CSV file
     csv_file = os.path.join("..", "data", "detuning.csv")
 
     # Initialize display and MIDI driver
-    display = Display(variables,control_variables)
-    midi_driver = MidiDriver(variables,control_variables)
-    kernel = Kernel(variables, csv_file)
+    display = Display(input_variables,calculated_variables)
+    midi_driver = MidiDriver(input_variables,calculated_variables)
+    kernel = Kernel(input_variables, calculated_variables, csv_file)
 
     # Run MIDI driver and display concurrently
     try:

@@ -31,50 +31,51 @@ RQ = config["constants"]["RQ"]
 
 
 class Kernel:
-    def __init__(self, variables, csv_file):
-        self.variables = variables
+    def __init__(self, input_variables, calculated_variables, csv_file):
+        self.input_variables = input_variables
+        self.calculated_variables = calculated_variables
         self.csv_file = csv_file
         self.detuning_time_generator = self._detuning_time_generator()
 
     @property
     def uphonics_range(self):
         """Dynamically retrieve the value of uphonics_range from variables."""
-        return self.variables['uphonics_range']['value']
+        return self.input_variables['uphonics_range']['value']
     
     @property
     def Qe(self):
         """Dynamically retrieve the value of Qe from variables."""
-        return self.variables['Qe']['value']
+        return self.input_variables['Qe']['value']
     
     @property
     def tuning_range(self):
         """Dynamically retrieve the value of tuning_range from variables."""
-        return self.variables['tuning_range']['value']
+        return self.input_variables['tuning_range']['value']
     
     @property
     def FRT_On(self):
         """Dynamically retrieve the value of FRT_On from variables."""
-        return self.variables['FRT On']['value']
+        return self.input_variables['FRT On']['value']
     
     @property
     def FoM(self):
         """Dynamically retrieve the value of FoM from variables."""
-        return self.variables['FoM']['value']
+        return self.input_variables['FoM']['value']
     
     @property
     def QFRT(self):
         """Calculate QFRT based on the current variables."""
-        return self.FoM*f0/self.tuning_range
+        return self.calculated_variables['QFRT']
     
     @property
     def QL(self):
         """Calculate QL based on the current variables."""
-        return 1 / (1 / self.Qe + 1 / Q0)
+        return self.calculated_variables['QL']
 
     @property
     def QL_FRT(self):
         """Calculate QL_FRT based on the current variables."""
-        return 1 / (1 / self.Qe + 1 / Q0 + 1 / self.QFRT)
+        return self.calculated_variables['QL_FRT']
     
     def _get_state(self):
         """Return the current state of the midi controls except FRT_On."""
@@ -149,25 +150,16 @@ class Kernel:
 
         return avg_pg, avg_pg_frt
     
-    def QeOpts(self):
-        """Calculate the optimal value of Qe based on the current variables."""
-        Qe_opt = w0/self.uphonics_range
-        Qe_opt_FRT = 1 / (1 / Q0 + 1 / self.QFRT)
-        return Qe_opt, Qe_opt_FRT
-        
-
     async def start_async(self, queue):
         # Placeholder for the main loop of the kernel
         while True:
             time, detuning, detuning_FRT = self.DeltaOmega_t()
             Pgen, Pgen_FRT = self.Pg(detuning, detuning_FRT)
             Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
-            Qe_opt, Qe_opt_FRT = self.QeOpts()
             await queue.put({"Time": time,
                              "Detuning": detuning, "Pg": Pgen,
                              "Detuning FRT": detuning_FRT, "Pg_FRT": Pgen_FRT,
                              "Pg_Avg": Pg_Avg, "Pg_FRT_Avg": Pg_FRT_Avg,
-                             "Qe_opt": Qe_opt, "Qe_opt_FRT": Qe_opt_FRT,
                              })
             await asyncio.sleep(0)  # Simulate some processing delay
             

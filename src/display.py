@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Display:
-    def __init__(self, variables,control_variables):
-        self.variables = variables
-        self.control_variables = control_variables
+    def __init__(self, input_variables,calculated_variables):
+        self.input_variables = input_variables
+        self.calculated_variables = calculated_variables
         self.fig, (self.ax, self.ax_pg_vs_detuning) = plt.subplots(2,1, figsize=(8,6))
         self.fig.canvas.mpl_connect('close_event', self.on_close)
         self.ax2 = self.ax.twinx()
+        self.ax2.set_yscale('log')
+        self.ax2.set_ylim(self.input_variables['Qe']['range'])
         self.bars = None
         self.qe_bar = None
 
@@ -23,19 +25,16 @@ class Display:
         self.ax_pg_vs_detuning.set_xlabel("Detuning")
         self.ax_pg_vs_detuning.set_ylabel("Pg")
         self.pg_vs_detuning_scatter = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.',label="Pg vs Detuning")
-        #self.pg_vs_detuning_line, = self.ax_pg_vs_detuning.plot([], [], 'r.', label="Pg vs Detuning")
         self.ax_pg_vs_detuning.legend()
 
         # Data for Pg vs detuning
         maxlen = 1130
-        self.detuning_data = deque(maxlen=maxlen)
         self.pg_colours = deque(maxlen=maxlen)
+        self.detuning_data = deque(maxlen=maxlen)
         self.pg_data = deque(maxlen=maxlen)
+        self.detuning_FRT_data = deque(maxlen=maxlen)
+        self.pg_FRT_data = deque(maxlen=maxlen)
 
-    # @property
-    # def plotting_colour(self):
-    #     """PLotting Colour"""
-    #     return self.control_variables['Plotting_Colour']
 
     def on_close(self, event):
         """Handle the close event of the figure."""
@@ -52,10 +51,10 @@ class Display:
     def _initialize_primary_variables(self):
         """Extract and organize primary variable names and values."""
         self.variable_names = ['FRT On'] + [
-            name for name in self.variables.keys() if name not in ['Qe', 'FRT On']
+            name for name in self.input_variables.keys() if name not in ['Qe', 'FRT On']
         ]
-        self.variable_values = [self.variables['FRT On']['value']] + [
-            var['value'] for name, var in self.variables.items() if name not in ['Qe', 'FRT On']
+        self.variable_values = [self.input_variables['FRT On']['value']] + [
+            var['value'] for name, var in self.input_variables.items() if name not in ['Qe', 'FRT On']
         ]
 
     def _initialize_primary_bars(self):
@@ -71,28 +70,38 @@ class Display:
         """Calculate the y-axis limit for the primary variables."""
         return max(
             var['range'][1] if 'range' in var else 1  # Default to 1 if 'range' is missing
-            for name, var in self.variables.items()
+            for name, var in self.input_variables.items()
             if name != 'Qe'
         ) * 1.2
 
     def _initialize_Qe_bar(self):
         """Set up the secondary bar chart for Qe, if it exists."""
-        if 'Qe' in self.variables:
-            qe_value = self.variables['Qe']['value']
+        if 'Qe' in self.input_variables:
+            qe_value = self.input_variables['Qe']['value']
             self.qe_bar = self.ax2.bar(
                 [len(self.variable_names)],  # Position Qe after the primary bars
                 [qe_value],
                 color='red',
                 label='Qe'
             )
-            self.ax2.set_ylim(0, self._calculate_secondary_y_axis_limit())
             self.ax2.set_ylabel("Qe Value")
-            self._update_x_axis_labels()
 
-    def _calculate_secondary_y_axis_limit(self):
-        """Calculate the y-axis limit for the secondary variable Qe."""
-        qe_range = self.variables['Qe'].get('range', [0, 1])  # Default range [0, 1] if missing
-        return qe_range[1] * 1.2
+            # Add a horizontal line for Qe_opt
+            # Get the width of the Qe bar
+            bar_width = self.qe_bar[0].get_width()
+            # Calculate the x-coordinates for the dashed line
+            qe_bar_x = len(self.variable_names)  # X-position of the Qe bar
+            x_start = qe_bar_x - bar_width / 2
+            x_end = qe_bar_x + bar_width / 2
+
+            # Add a horizontal dashed line limited to the Qe bar
+            qe_opt_value = 10**9  # Replace with the actual Qe_opt value
+            self.qe_opt_line, = self.ax2.plot(
+                [x_start, x_end], [qe_opt_value, qe_opt_value],
+                color='blue', linestyle='--', label='Qe_opt'
+            )
+
+            self._update_x_axis_labels()
 
     def _update_x_axis_labels(self):
         """Update x-axis labels to include Qe."""
@@ -103,12 +112,21 @@ class Display:
         """Update the heights of the bars based on the current variable values."""
         for bar, name in zip(self.bars, self.variable_names):
             # Update the bar height with the current value of the variable
-            bar.set_height(self.variables[name]['value'])
+            bar.set_height(self.input_variables[name]['value'])
 
         # Update the Qe bar if it exists
         if self.qe_bar:
-            qe_value = self.variables['Qe']['value']
+            qe_value = self.input_variables['Qe']['value']
             self.qe_bar[0].set_height(qe_value)
+
+        # # Update the Qe_opt line dynamically
+        # if hasattr(self, 'qe_opt_line'):
+        #     qe_opt_value = self.variables['Qe_opt']['value']
+        #     bar_width = self.qe_bar[0].get_width()
+        #     qe_bar_x = len(self.variable_names)  # X-position of the Qe bar
+        #     x_start = qe_bar_x - bar_width / 2
+        #     x_end = qe_bar_x + bar_width / 2
+        #     self.qe_opt_line.set_data([x_start, x_end], [qe_opt_value, qe_opt_value])
 
 
     async def start_async(self, queue):
@@ -121,10 +139,16 @@ class Display:
                 self.pg_vs_detuning_scatter.set_offsets(np.column_stack((self.detuning_data, self.pg_data)))
                 self.pg_vs_detuning_scatter.set_color(self.pg_colours)
                 # Manually update the axes limits
-                self.ax_pg_vs_detuning.set_xlim(min(self.detuning_data), max(self.detuning_data))
-                self.ax_pg_vs_detuning.set_ylim(min(self.pg_data), max(self.pg_data))
-                # self.ax_pg_vs_detuning.relim()  # Recalculate limits
-                # self.ax_pg_vs_detuning.autoscale_view()  # Autoscale the view
+                # Update limits only if necessary
+                largest_detuning = max(np.abs(min(self.detuning_data)),max(self.detuning_data))
+                x_scale = self.ax_pg_vs_detuning.get_xlim()[1]
+                if  largest_detuning > x_scale or largest_detuning<0.8*x_scale:
+                    self.ax_pg_vs_detuning.set_xlim(-1.05*largest_detuning, 1.05*largest_detuning)
+                largest_power = max(self.pg_data)
+                largest_yscale = self.ax_pg_vs_detuning.get_ylim()[1]
+                if largest_power > largest_yscale or largest_power<0.8*largest_yscale:
+                    self.ax_pg_vs_detuning.set_ylim(0, 1.05*largest_power)
+                
                 
         # Use FuncAnimation without blitting
         ani = FuncAnimation(
@@ -149,72 +173,17 @@ class Display:
                 detuning = data["Detuning"]
                 colour = self.control_variables['Plotting_Colour']
                 pg = data["Pg"]
+                detuning_FRT = data["Detuning FRT"]
+                pg_FRT = data["Pg FRT"]
 
                 # Append the new data to the circular buffers
                 self.pg_colours.append(colour)
                 self.detuning_data.append(detuning)
                 self.pg_data.append(pg)
+                self.detuning_FRT_data.append(detuning_FRT)
+                self.pg_FRT_data.append(pg_FRT)
 
             # Allow matplotlib to update the plot
             plt.pause(0.001)
             await asyncio.sleep(0)
-            #plt.show()
 
-###
-    # def __init__(self, variables):
-    #     self.variables = variables
-    #     self.time = 0
-    #     self.detuning = 0
-    #     self.Pg = 0
-
-    #     # Create a figure for Pg vs detuning
-    #     self.fig, (self.ax_bars, self.ax_pg_vs_detuning) = plt.subplots(2, 1, figsize=(8, 6))
-
-    #     # Initialize the bar chart for primary variables
-    #     self.bars = self.ax_bars.bar(self.variables.keys(), [var['value'] for var in self.variables.values()], color='blue')
-    #     self.ax_bars.set_title("Live Input Values")
-    #     self.ax_bars.set_ylabel("Value")
-
-    #     # Initialize the Pg vs detuning plot
-    #     self.ax_pg_vs_detuning.set_title("Pg vs Detuning")
-    #     self.ax_pg_vs_detuning.set_xlabel("Detuning")
-    #     self.ax_pg_vs_detuning.set_ylabel("Pg")
-    #     self.pg_vs_detuning_line, = self.ax_pg_vs_detuning.plot([], [], 'r-', label="Pg vs Detuning")
-    #     self.ax_pg_vs_detuning.legend()
-
-    #     # Data for Pg vs detuning
-    #     self.detuning_data = []
-    #     self.pg_data = []
-
-    # def update_bars(self, _):
-    #     """Update the heights of the bars based on the current variable values."""
-    #     for bar, (name, var) in zip(self.bars, self.variables.items()):
-    #         bar.set_height(var['value'])
-
-    # def update_pg_vs_detuning(self):
-    #     """Update the Pg vs detuning plot."""
-    #     self.pg_vs_detuning_line.set_data(self.detuning_data, self.pg_data)
-    #     self.ax_pg_vs_detuning.relim()  # Recalculate limits
-    #     self.ax_pg_vs_detuning.autoscale_view()  # Autoscale the view
-
-    # async def start_async(self, queue):
-    #     """Asynchronous plotting."""
-    #     ani = FuncAnimation(self.fig, self.update_bars, interval=100, cache_frame_data=False)
-
-    #     # Continuously consume values from the queue
-    #     while True:
-    #         # Get the latest values from the queue
-    #         data = await queue.get()
-    #         self.detuning = data["Detuning"]
-    #         self.Pg = data["Pg"]
-
-    #         # Append the new data to the Pg vs detuning plot
-    #         self.detuning_data.append(self.detuning)
-    #         self.pg_data.append(self.Pg)
-
-    #         # Update the Pg vs detuning plot
-    #         self.update_pg_vs_detuning()
-
-    #         # Allow matplotlib to update the plot
-    #         plt.pause(0.02)
-    #         await asyncio.sleep(0.02)  # Yield control to the asyncio event loop

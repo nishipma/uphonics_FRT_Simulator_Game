@@ -2,16 +2,12 @@ import os
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame.midi
 import asyncio
-import matplotlib.cm as cm
-import time
+from event_system import AsyncEventSystem
 
 class MidiDriver:
-    def __init__(self, variables,control_variables):
-        self.control_variables = control_variables
-        self.last_update_time = 0  # Track the last time the color was updated
-        self.color_index = 0  # Index for the color wheel
-        
-        self.variables = variables
+    def __init__(self, event_system, input_variables):
+        self.event_system = event_system
+        self.input_variables = input_variables
         self.midi_mappings = {
             36: "FoM",  # Slider 1 -> FoM
             37: "uphonics_range",  # Slider 2 -> uphonics_range
@@ -20,17 +16,38 @@ class MidiDriver:
             40: "FRT On",  # Button 1 -> FRT On
         }
 
-    def get_next_color(self):
-        """Generate the next color from a color wheel."""
-        num_colors = 10  # Number of distinct colors
-        colormap = cm.get_cmap('hsv', num_colors)  # Use the HSV color wheel
-        color = colormap(self.color_index % num_colors)  # Get the next color
-        self.color_index += 1
-        # Convert RGBA to a hex color string
-        return '#{:02x}{:02x}{:02x}'.format(
-            int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
-        )
-    
+    def process_midi_input(self, status, cc, value):
+        """
+        Process a MIDI message and update the corresponding input variable.
+        :param status: The MIDI status byte (e.g., 176 for CC, 144 for Note On).
+        :param cc: The MIDI CC number or Note number.
+        :param value: The MIDI CC value (0-127) or Note velocity.
+        """
+        if status == 176:  # Control Change message
+            if cc in self.midi_mappings:
+                variable = self.midi_mappings[cc]
+                min_val, max_val = self.input_variables[variable]['range']
+                # Update the variable value (linear or logarithmic scaling)
+                if variable == 'Qe':
+                    new_value = min_val * (max_val / min_val) ** (value / 127)
+                else:
+                    new_value = min_val + (value / 127) * (max_val - min_val)
+
+                # Check if the value has changed
+                if self.input_variables[variable]['value'] != new_value:
+                    self.input_variables[variable]['value'] = new_value
+                    print(f"Updated {variable}: {new_value}")
+                                                          
+        elif status == 144:  # Note On message
+            # Handle FRT On/Off switch
+            value = 1 if value > 0 else 0
+            if cc in self.midi_mappings:
+                variable = self.midi_mappings[cc]
+                if self.input_variables[variable]['value'] != value:
+                    self.input_variables[variable]['value'] = value
+                    print(f"Updated {variable}: {value}")
+                    
+
     async def start_async(self):
         """Asynchronous MIDI event listener."""
         # Initialize Pygame MIDI
@@ -55,28 +72,12 @@ class MidiDriver:
             while True:
                 if midi_input.poll():
                     midi_events = midi_input.read(10)
-                    #update the colour
-                    current_time = time.time()
-                    if current_time - self.last_update_time > 0.2:  # Check if 0.2 seconds have passed
-                        self.control_variables['Plotting_Colour'] = self.get_next_color()
-                        self.last_update_time = current_time
                     for event in midi_events:
                         data = event[0]
                         status, cc, value = data[0], data[1], data[2]
-                        if status == 176:  # Control Change message
-                            if cc in self.midi_mappings:
-                                variable = self.midi_mappings[cc]
-                                min_val, max_val = self.variables[variable]['range']
-                                self.variables[variable]['value'] = min_val + (value / 127) * (max_val - min_val)
-                                print(f"Updated {variable}: {self.variables[variable]['value']}")
-                        if status == 144:
-                            # Switch FRT On/Off
-                            value = 1 if value > 0 else 0
-                            if cc in self.midi_mappings:
-                                variable = self.midi_mappings[cc]
-                                if self.variables[variable]['value'] != value:
-                                    self.variables[variable]['value'] = value
-                                    print(f"Updated {variable}: {self.variables[variable]['value']}")
+                        self.process_midi_input(status, cc, value)
+                        # Publish the "input_variable_changed" event
+                        await self.event_system.trigger_event("input_variable_changed")
                                 
                 await asyncio.sleep(0.016)  # Yield control to the event loop
 
@@ -85,40 +86,29 @@ class MidiDriver:
             midi_output.close()
             pygame.midi.quit()
 
-# from pynput import keyboard
+#import matplotlib.cm as cm
 
-# class MidiDriver:
-#     def __init__(self, variables, step=1):
-#         self.variables = variables
-#         self.step = step
-#         self.key_mappings = {
-#             "a": "FoM",  # Increase FoM
-#             "z": "FoM",  # Decrease FoM
-#             "s": "uphonics_range",  # Increase uphonics_range
-#             "x": "uphonics_range",  # Decrease uphonics_range
-#             "d": "Qe",  # Increase Qe
-#             "c": "Qe",  # Decrease Qe
-#             "f": "tuning_range",  # Increase tuning_range
-#             "v": "tuning_range",  # Decrease tuning_range
-#         }
+# def get_next_color(self):
+#     """Generate the next color from a color wheel."""
+#     num_colors = 10  # Number of distinct colors
+#     colormap = cm.get_cmap('hsv', num_colors)  # Use the HSV color wheel
+#     color = colormap(self.color_index % num_colors)  # Get the next color
+#     self.color_index += 1
+#     # Convert RGBA to a hex color string
+#     return '#{:02x}{:02x}{:02x}'.format(
+#         int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
+#     )
 
-#     def on_press(self, key):
-#         try:
-#             # Check if the key is mapped
-#             if hasattr(key, 'char') and key.char in self.key_mappings:
-#                 variable = self.key_mappings[key.char]
-#                 if key.char in "asdf":  # Increase keys
-#                     self.variables[variable] += self.step
-#                 elif key.char in "zxcv":  # Decrease keys
-#                     self.variables[variable] -= self.step
-
-#                 # Print updated variables
-#                 print(f"Updated variables: {self.variables}")
-#         except AttributeError:
-#             # Handle special keys (not used here)
-#             pass
-
-#     def start(self):
-#         """Start listening to keyboard events."""
-#         listener = keyboard.Listener(on_press=self.on_press)
-#         listener.start()
+# def update_calculated_variables(self):
+#     """Update calculated variables based on the current input variables."""
+#     #update the colour
+#     current_time = time.time()
+#     if current_time - self.last_update_time > 0.2:  # Check if 0.2 seconds have passed
+#         self.calculated_variables['Plotting_Colour'] = self.get_next_color()
+#         self.last_update_time = current_time
+#     #update the calculated variables
+#     self.calculated_variables['Qe_opt'] = w0/self.input_variables['uphonics_range']
+#     self.calculated_variables['QFRT'] = self.input_variables['FoM']*f0/self.input_variables['tuning_range']
+#     self.calculated_variables['Qe_opt_FRT'] = 1 / (1 / Q0 + 1 / self.calculated_variables['QFRT'])
+#     self.calculated_variables['QL'] = 1 / (1 / self.input_variables['Qe'] + 1 / Q0)
+#     self.calculated_variables['QL_FRT'] = 1 / (1 / self.input_variables['Qe'] + 1 / Q0 + 1 / self.calculated_variables['QFRT'])
