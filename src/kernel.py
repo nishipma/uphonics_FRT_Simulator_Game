@@ -75,6 +75,11 @@ class Kernel:
     def QL_FRT(self):
         """Calculate QL_FRT based on the current variables."""
         return 1 / (1 / self.Qe + 1 / Q0 + 1 / self.QFRT)
+    
+    def _get_state(self):
+        """Return the current state of the midi controls except FRT_On."""
+        state = (self.uphonics_range, self.Qe, self.tuning_range, self.FoM)
+        return state
 
     def _detuning_time_generator(self):
         """Generator to yield detuning and time pairs from the CSV file."""
@@ -114,12 +119,55 @@ class Kernel:
             detuning_FRT = 0
         
         return t, detuning, detuning_FRT
+    
+    def AvergaePower(self,Pgen,Pgen_FRT):
+        """Calculate the avergae powers"""
+        # Initialize/reset state tracking and accumulators
+        if not hasattr(self, "_state") or not hasattr(self, "_pg_sum"):
+            self._state = self._get_state()
+            self._pg_sum = 0
+            self._pg_frt_sum = 0
+            self._count = 0
+            
+        # Check if any property has changed
+        current_state = self._get_state()
+        if current_state != self._state:
+            # Reset accumulators if state has changed
+            self._state = current_state
+            self._pg_sum = 0
+            self._pg_frt_sum = 0
+            self._count = 0
+
+        # Update accumulators
+        self._pg_sum += Pgen
+        self._pg_frt_sum += Pgen_FRT
+        self._count += 1
+
+        # Calculate averages
+        avg_pg = self._pg_sum / self._count
+        avg_pg_frt = self._pg_frt_sum / self._count
+
+        return avg_pg, avg_pg_frt
+    
+    def QeOpts(self):
+        """Calculate the optimal value of Qe based on the current variables."""
+        Qe_opt = w0/self.uphonics_range
+        Qe_opt_FRT = 1 / (1 / Q0 + 1 / self.QFRT)
+        return Qe_opt, Qe_opt_FRT
+        
 
     async def start_async(self, queue):
         # Placeholder for the main loop of the kernel
         while True:
             time, detuning, detuning_FRT = self.DeltaOmega_t()
             Pgen, Pgen_FRT = self.Pg(detuning, detuning_FRT)
-            await queue.put({"Time": time, "Detuning": detuning, "Pg": Pgen, "Detuning FRT": detuning_FRT, "Pg_FRT": Pgen_FRT})
+            Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
+            Qe_opt, Qe_opt_FRT = self.QeOpts()
+            await queue.put({"Time": time,
+                             "Detuning": detuning, "Pg": Pgen,
+                             "Detuning FRT": detuning_FRT, "Pg_FRT": Pgen_FRT,
+                             "Pg_Avg": Pg_Avg, "Pg_FRT_Avg": Pg_FRT_Avg,
+                             "Qe_opt": Qe_opt, "Qe_opt_FRT": Qe_opt_FRT,
+                             })
             await asyncio.sleep(0)  # Simulate some processing delay
             

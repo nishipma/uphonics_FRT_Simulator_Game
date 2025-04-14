@@ -155,9 +155,6 @@ class Display:
                 self.detuning_data.append(detuning)
                 self.pg_data.append(pg)
 
-                # Debug prints
-                print(f"Appended detuning: {detuning}, pg: {pg}, colour: {colour}")
-            
             # Allow matplotlib to update the plot
             plt.pause(0.001)
             await asyncio.sleep(0)
