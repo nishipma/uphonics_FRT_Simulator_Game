@@ -171,7 +171,7 @@ class Display:
             #Process the batch
             for data in batch:
                 detuning = data["Detuning"]
-                colour = self.control_variables['Plotting_Colour']
+                colour = self.calculated_variables['Plotting_Colour']
                 pg = data["Pg"]
                 detuning_FRT = data["Detuning FRT"]
                 pg_FRT = data["Pg FRT"]

@@ -86,18 +86,7 @@ class MidiDriver:
             midi_output.close()
             pygame.midi.quit()
 
-#import matplotlib.cm as cm
 
-# def get_next_color(self):
-#     """Generate the next color from a color wheel."""
-#     num_colors = 10  # Number of distinct colors
-#     colormap = cm.get_cmap('hsv', num_colors)  # Use the HSV color wheel
-#     color = colormap(self.color_index % num_colors)  # Get the next color
-#     self.color_index += 1
-#     # Convert RGBA to a hex color string
-#     return '#{:02x}{:02x}{:02x}'.format(
-#         int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
-#     )
 
 # def update_calculated_variables(self):
 #     """Update calculated variables based on the current input variables."""

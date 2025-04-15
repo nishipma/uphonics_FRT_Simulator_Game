@@ -33,13 +33,20 @@ async def main():
         'QL': {'value': 0},
         'QL_FRT': {'value': 0},
     }
-
+    
+    # Create the event system
+    event_system = AsyncEventSystem()
+    # Register events
+    event_system.register_event("input variable_changed")
+    event_system.register_event("calculated variable_changed")
+    
+    
     # Path to the CSV file
     csv_file = os.path.join("..", "data", "detuning.csv")
 
     # Initialize display and MIDI driver
     display = Display(input_variables,calculated_variables)
-    midi_driver = MidiDriver(input_variables,calculated_variables)
+    midi_driver = MidiDriver(input_variables)
     kernel = Kernel(input_variables, calculated_variables, csv_file)
 
     # Run MIDI driver and display concurrently

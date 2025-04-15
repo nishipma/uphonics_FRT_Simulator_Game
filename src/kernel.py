@@ -3,6 +3,8 @@ import json
 import os
 import asyncio
 import numpy as np
+import time
+import matplotlib.cm as cm
 
 #detuning_offset
 detuning_offset = 0.034688375
@@ -31,41 +33,98 @@ RQ = config["constants"]["RQ"]
 
 
 class Kernel:
-    def __init__(self, input_variables, calculated_variables, csv_file):
+    def __init__(self, input_variables, calculated_variables, csv_file, event_system):
         self.input_variables = input_variables
         self.calculated_variables = calculated_variables
         self.csv_file = csv_file
         self.detuning_time_generator = self._detuning_time_generator()
+        self.input_variable_queue = event_system.add_listener("input_variable_changed")
+        self.last_update_time = time.time()
 
+        #Cache for input variables
+        self._cached_input_variables = {}
+        self._cache_valid =False
+
+    def _invalidate_cache(self):
+        """Invalidate the cache when input variables change."""
+        self._cache_valid = False
+
+    def _get_cached_input_variables(self, key):
+        """Retrieve a cached value or recalculate it if the cache is invalid."""
+        if not self._cache_valid:
+            # Recalculate the value and update the cache
+            self._recalculate_variables()
+        return self._cached_input_variables[key]
+
+    def _get_next_color(self):
+        """Generate the next color from a color wheel."""
+        num_colors = 10  # Number of distinct colors
+        colormap = cm.get_cmap('hsv', num_colors)  # Use the HSV color wheel
+        color = colormap(self.color_index % num_colors)  # Get the next color
+        self.color_index += 1
+        # Convert RGBA to a hex color string
+        return '#{:02x}{:02x}{:02x}'.format(
+            int(color[0] * 255), int(color[1] * 255), int(color[2] * 255)
+        )
+
+    def _recalculate_variables(self):
+        """Recalculate all input and calculated variables and update the cache."""
+        for key in self.input_variables:
+            # Recalculate the input variable
+            value = self.input_variables[key]['value']
+            self._cached_input_variables[key] = value
+
+        # Recalculate the calculated variables
+        current_time = time.time()
+        if current_time - self.last_update_time > 0.2:  # Check if 0.2 seconds have passed
+            self.calculated_variables['Plotting_Colour'] = self._get_next_color()
+            self.last_update_time = current_time
+        #update the calculated variables
+        self.calculated_variables['Qe_opt'] = w0/self._cached_input_variables['uphonics_range']
+        self.calculated_variables['QFRT'] = self._cached_input_variables['FoM']*f0/self._cached_input_variables['tuning_range']
+        self.calculated_variables['Qe_opt_FRT'] = 1 / (1 / Q0 + 1 / self.calculated_variables['QFRT'])
+        self.calculated_variables['QL'] = 1 / (1 / self._cached_input_variables['Qe'] + 1 / Q0)
+        self.calculated_variables['QL_FRT'] = 1 / (1 / self._cached_input_variables['Qe'] + 1 / Q0 + 1 / self.calculated_variables['QFRT'])
+
+        # Notify other components that calculated variables have changed
+        self.event_system.trigger("calculated_variables_changed", self.calculated_variables)
+
+        # Mark the cache as valid
+        self._cache_valid = True
+
+    async def _listen_for_changes(self):
+        """Listen for changes in input variables and invalidate the cache."""
+        while True:
+            # Wait for a change in input variables
+            await self.input_variable_queue.get()
+            # Invalidate the cache when a change is detected
+            self._invalidate_cache()
+    
     @property
     def uphonics_range(self):
         """Dynamically retrieve the value of uphonics_range from variables."""
-        return self.input_variables['uphonics_range']['value']
+        return self._get_cached_input_variables('uphonics_range')
     
     @property
     def Qe(self):
         """Dynamically retrieve the value of Qe from variables."""
-        return self.input_variables['Qe']['value']
+        return self._get_cached_input_variables('Qe')
     
     @property
     def tuning_range(self):
         """Dynamically retrieve the value of tuning_range from variables."""
-        return self.input_variables['tuning_range']['value']
+        return self._get_cached_input_variables('tuning_range')
+    
     
     @property
     def FRT_On(self):
         """Dynamically retrieve the value of FRT_On from variables."""
-        return self.input_variables['FRT On']['value']
+        return self._get_cached_input_variables('FRT_On')
     
     @property
     def FoM(self):
         """Dynamically retrieve the value of FoM from variables."""
-        return self.input_variables['FoM']['value']
-    
-    @property
-    def QFRT(self):
-        """Calculate QFRT based on the current variables."""
-        return self.calculated_variables['QFRT']
+        return self._get_cached_input_variables('FoM')
     
     @property
     def QL(self):
@@ -150,13 +209,13 @@ class Kernel:
 
         return avg_pg, avg_pg_frt
     
-    async def start_async(self, queue):
+    async def start_async(self, results_queue):
         # Placeholder for the main loop of the kernel
         while True:
             time, detuning, detuning_FRT = self.DeltaOmega_t()
             Pgen, Pgen_FRT = self.Pg(detuning, detuning_FRT)
             Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
-            await queue.put({"Time": time,
+            await results_queue.put({"Time": time,
                              "Detuning": detuning, "Pg": Pgen,
                              "Detuning FRT": detuning_FRT, "Pg_FRT": Pgen_FRT,
                              "Pg_Avg": Pg_Avg, "Pg_FRT_Avg": Pg_FRT_Avg,
