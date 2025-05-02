@@ -1,6 +1,7 @@
 from display import Display
 from midi_driver import MidiDriver
 from kernel import Kernel
+from event_system import AsyncEventSystem
 import os
 import asyncio
 
@@ -23,7 +24,7 @@ async def main():
         'uphonics_range': {'value': 20, 'range': variable_ranges['uphonics_range']},
         'Qe': {'value': 10**7, 'range': variable_ranges['Qe']},
         'tuning_range': {'value': 25, 'range': variable_ranges['tuning_range']},
-        'FRT On': {'value':0}
+        'FRT_On': {'value':0}
     }
 
     calculated_variables = {
@@ -37,24 +38,27 @@ async def main():
     # Create the event system
     event_system = AsyncEventSystem()
     # Register events
-    event_system.register_event("input variable_changed")
-    event_system.register_event("calculated variable_changed")
+    event_system.register_event("input variables changed")
+    event_system.register_event("calculated variables changed")
     
     
     # Path to the CSV file
     csv_file = os.path.join("..", "data", "detuning.csv")
 
     # Initialize display and MIDI driver
-    display = Display(input_variables,calculated_variables)
-    midi_driver = MidiDriver(input_variables)
-    kernel = Kernel(input_variables, calculated_variables, csv_file)
+    display = Display(input_variables,calculated_variables,event_system)
+    midi_driver = MidiDriver(input_variables, event_system)
+    kernel = Kernel(input_variables, calculated_variables, csv_file, event_system)
 
     # Run MIDI driver and display concurrently
     try:
         await asyncio.gather(
             midi_driver.start_async(),
             display.start_async(queue),
-            kernel.start_async(queue)
+            kernel.start_async(queue),
+            kernel._listen_for_input_changes(),  # Listen for changes in input variables
+            display._listen_for_input_changes(),  # Listen for changes in input variables
+            display._listen_for_calculated_changes(),  # Listen for changes in calculated variables
         )
     except asyncio.CancelledError:
         print("Program stopped.")

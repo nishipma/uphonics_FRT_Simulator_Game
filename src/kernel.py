@@ -37,14 +37,16 @@ class Kernel:
         self.input_variables = input_variables
         self.calculated_variables = calculated_variables
         self.csv_file = csv_file
+        self.event_system = event_system
         self.detuning_time_generator = self._detuning_time_generator()
-        self.input_variable_queue = event_system.add_listener("input_variable_changed")
+        self.input_variable_queue = event_system.add_listener("input variables changed")
         self.last_update_time = time.time()
+        self.color_index = 0
 
         #Cache for input variables
         self._cached_input_variables = {}
         self._cache_valid =False
-
+        
     def _invalidate_cache(self):
         """Invalidate the cache when input variables change."""
         self._cache_valid = False
@@ -73,7 +75,6 @@ class Kernel:
             # Recalculate the input variable
             value = self.input_variables[key]['value']
             self._cached_input_variables[key] = value
-
         # Recalculate the calculated variables
         current_time = time.time()
         if current_time - self.last_update_time > 0.2:  # Check if 0.2 seconds have passed
@@ -87,12 +88,12 @@ class Kernel:
         self.calculated_variables['QL_FRT'] = 1 / (1 / self._cached_input_variables['Qe'] + 1 / Q0 + 1 / self.calculated_variables['QFRT'])
 
         # Notify other components that calculated variables have changed
-        self.event_system.trigger("calculated_variables_changed", self.calculated_variables)
+        asyncio.create_task(self.event_system.trigger_event("calculated variables changed", self.calculated_variables))
 
         # Mark the cache as valid
         self._cache_valid = True
 
-    async def _listen_for_changes(self):
+    async def _listen_for_input_changes(self):
         """Listen for changes in input variables and invalidate the cache."""
         while True:
             # Wait for a change in input variables
@@ -217,8 +218,8 @@ class Kernel:
             Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
             await results_queue.put({"Time": time,
                              "Detuning": detuning, "Pg": Pgen,
-                             "Detuning FRT": detuning_FRT, "Pg_FRT": Pgen_FRT,
-                             "Pg_Avg": Pg_Avg, "Pg_FRT_Avg": Pg_FRT_Avg,
+                             "Detuning FRT": detuning_FRT, "Pg FRT": Pgen_FRT,
+                             "Pg Avg": Pg_Avg, "Pg FRT Avg": Pg_FRT_Avg,
                              })
             await asyncio.sleep(0)  # Simulate some processing delay
             

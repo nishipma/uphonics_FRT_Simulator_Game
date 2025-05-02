@@ -5,7 +5,7 @@ import asyncio
 from event_system import AsyncEventSystem
 
 class MidiDriver:
-    def __init__(self, event_system, input_variables):
+    def __init__(self, input_variables, event_system):
         self.event_system = event_system
         self.input_variables = input_variables
         self.midi_mappings = {
@@ -13,7 +13,7 @@ class MidiDriver:
             37: "uphonics_range",  # Slider 2 -> uphonics_range
             38: "tuning_range",  # Slider 4 -> tuning_range
             39: "Qe",  # Slider 3 -> Qe
-            40: "FRT On",  # Button 1 -> FRT On
+            40: "FRT_On",  # Button 1 -> FRT On
         }
 
     def process_midi_input(self, status, cc, value):
@@ -77,7 +77,7 @@ class MidiDriver:
                         status, cc, value = data[0], data[1], data[2]
                         self.process_midi_input(status, cc, value)
                         # Publish the "input_variable_changed" event
-                        await self.event_system.trigger_event("input_variable_changed")
+                        await self.event_system.trigger_event("input variables changed")
                                 
                 await asyncio.sleep(0.016)  # Yield control to the event loop
 

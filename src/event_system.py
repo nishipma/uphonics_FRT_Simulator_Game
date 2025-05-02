@@ -38,4 +38,5 @@ class AsyncEventSystem:
         if event_name not in self._events:
             raise ValueError(f"Event '{event_name}' is not registered.")
         for queue in self._events[event_name]:
+            
             await queue.put((args, kwargs))

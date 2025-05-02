@@ -5,9 +5,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Display:
-    def __init__(self, input_variables,calculated_variables):
+    def __init__(self, input_variables,calculated_variables, event_system):
         self.input_variables = input_variables
         self.calculated_variables = calculated_variables
+        self.calculated_variable_queue = event_system.add_listener("calculated variables changed")
+        self.input_variable_queue = event_system.add_listener("input variables changed")
+
+        #Cache for calculated variables
+        self._cached_calculated_variables = {}
+        self._calculated_cache_valid =False
+
+        #Cache for input variables
+        self._cached_input_variables = {}
+        self._input_cache_valid =False
+        
         self.fig, (self.ax, self.ax_pg_vs_detuning) = plt.subplots(2,1, figsize=(8,6))
         self.fig.canvas.mpl_connect('close_event', self.on_close)
         self.ax2 = self.ax.twinx()
@@ -36,6 +47,89 @@ class Display:
         self.pg_FRT_data = deque(maxlen=maxlen)
 
 
+
+    @property
+    def Plotting_Colour(self):
+        """Dynamically retrieve the value of Plotting_Colour from calculated variables."""
+        return self._get_cached_calculated_variables('Plotting_Colour')
+    
+    @property
+    def Qe(self):
+        """Dynamically retrieve the value of Qe from input variables."""
+        return self._get_cached_input_variables('Qe')
+    
+    @property
+    def FoM(self):
+        """Dynamically retrieve the value of FoM from input variables."""
+        return self._get_cached_input_variables('FoM')
+    
+    @property
+    def tuning_range(self):
+        """Dynamically retrieve the value of tuning_range from input variables."""
+        return self._get_cached_input_variables('tuning_range')
+    
+    @property
+    def uphonics_range(self):
+        """Dynamically retrieve the value of uphonics_range from input variables."""
+        return self._get_cached_input_variables('uphonics_range')
+    
+    @property
+    def FRT_On(self):
+        """Dynamically retrieve the value of FRT_On from input variables."""
+        return self._get_cached_input_variables('FRT_On')
+
+    async def _listen_for_input_changes(self):
+        """Listen for changes in input variables and invalidate the cache."""
+        while True:
+            # Wait for a change in input variables
+            await self.input_variable_queue.get()
+            # Invalidate the cache when a change is detected
+            self._invalidate_input_cache()
+
+    def _invalidate_input_cache(self):
+        """Invalidate the cache when input variables change."""
+        self._input_cache_valid = False
+
+    def _get_cached_input_variables(self, key):
+        """Retrieve a cached value or recalculate it if the cache is invalid."""
+        if not self._input_cache_valid:
+            # Recalculate the value and update the cache
+            self._recalculate_input_variables()
+        return self._cached_input_variables[key]
+    
+    def _recalculate_input_variables(self):
+        """Recalculate all input variables and update the cache."""
+        for key in self.input_variables:
+            # Recalculate the input variable
+            value = self.input_variables[key]['value']
+            self._cached_input_variables[key] = value
+
+    async def _listen_for_calculated_changes(self):
+        """Listen for changes in calculated variables and invalidate the cache."""
+        while True:
+            # Wait for a change in calculated variables
+            await self.calculated_variable_queue.get()
+            # Invalidate the cache when a change is detected
+            self._invalidate_calculated_cache()
+
+    def _invalidate_calculated_cache(self):
+        """Invalidate the cache when calculated variables change."""
+        self._calculated_cache_valid = False
+
+    def _get_cached_calculated_variables(self, key):
+        """Retrieve a cached value or recalculate it if the cache is invalid."""
+        if not self._calculated_cache_valid:
+            # Recalculate the value and update the cache
+            self._recalculate_calculated_variables()
+        return self._cached_calculated_variables[key]
+    
+    def _recalculate_calculated_variables(self):
+        """Recalculate all calculated variables and update the cache."""
+        for key in self.calculated_variables:
+            # Recalculate the calculated variable
+            value = self.calculated_variables[key]
+            self._cached_calculated_variables[key] = value
+
     def on_close(self, event):
         """Handle the close event of the figure."""
         plt.close(self.fig)
@@ -50,11 +144,11 @@ class Display:
 
     def _initialize_primary_variables(self):
         """Extract and organize primary variable names and values."""
-        self.variable_names = ['FRT On'] + [
-            name for name in self.input_variables.keys() if name not in ['Qe', 'FRT On']
+        self.variable_names = ['FRT_On'] + [
+            name for name in self.input_variables.keys() if name not in ['Qe', 'FRT_On']
         ]
-        self.variable_values = [self.input_variables['FRT On']['value']] + [
-            var['value'] for name, var in self.input_variables.items() if name not in ['Qe', 'FRT On']
+        self.variable_values = [self.input_variables['FRT_On']['value']] + [
+            var['value'] for name, var in self.input_variables.items() if name not in ['Qe', 'FRT_On']
         ]
 
     def _initialize_primary_bars(self):
@@ -68,40 +162,35 @@ class Display:
 
     def _calculate_primary_y_axis_limit(self):
         """Calculate the y-axis limit for the primary variables."""
-        return max(
-            var['range'][1] if 'range' in var else 1  # Default to 1 if 'range' is missing
-            for name, var in self.input_variables.items()
-            if name != 'Qe'
-        ) * 1.2
+        return max(self.FoM,self.uphonics_range,self.tuning_range) * 1.2
 
     def _initialize_Qe_bar(self):
-        """Set up the secondary bar chart for Qe, if it exists."""
-        if 'Qe' in self.input_variables:
-            qe_value = self.input_variables['Qe']['value']
-            self.qe_bar = self.ax2.bar(
-                [len(self.variable_names)],  # Position Qe after the primary bars
-                [qe_value],
-                color='red',
-                label='Qe'
-            )
-            self.ax2.set_ylabel("Qe Value")
+        """Set up the secondary bar chart for Qe"""
+        
+        self.qe_bar = self.ax2.bar(
+            [len(self.variable_names)],  # Position Qe after the primary bars
+            [self.Qe],
+            color='red',
+            label='Qe'
+        )
+        self.ax2.set_ylabel("Qe Value")
 
-            # Add a horizontal line for Qe_opt
-            # Get the width of the Qe bar
-            bar_width = self.qe_bar[0].get_width()
-            # Calculate the x-coordinates for the dashed line
-            qe_bar_x = len(self.variable_names)  # X-position of the Qe bar
-            x_start = qe_bar_x - bar_width / 2
-            x_end = qe_bar_x + bar_width / 2
+        # Add a horizontal line for Qe_opt
+        # Get the width of the Qe bar
+        bar_width = self.qe_bar[0].get_width()
+        # Calculate the x-coordinates for the dashed line
+        qe_bar_x = len(self.variable_names)  # X-position of the Qe bar
+        x_start = qe_bar_x - bar_width / 2
+        x_end = qe_bar_x + bar_width / 2
 
-            # Add a horizontal dashed line limited to the Qe bar
-            qe_opt_value = 10**9  # Replace with the actual Qe_opt value
-            self.qe_opt_line, = self.ax2.plot(
-                [x_start, x_end], [qe_opt_value, qe_opt_value],
-                color='blue', linestyle='--', label='Qe_opt'
-            )
+        # Add a horizontal dashed line limited to the Qe bar
+        qe_opt_value = 10**9  # Replace with the actual Qe_opt value
+        self.qe_opt_line, = self.ax2.plot(
+            [x_start, x_end], [qe_opt_value, qe_opt_value],
+            color='blue', linestyle='--', label='Qe_opt'
+        )
 
-            self._update_x_axis_labels()
+        self._update_x_axis_labels()
 
     def _update_x_axis_labels(self):
         """Update x-axis labels to include Qe."""
@@ -111,26 +200,18 @@ class Display:
     def update_bars(self, _):
         """Update the heights of the bars based on the current variable values."""
         for bar, name in zip(self.bars, self.variable_names):
-            # Update the bar height with the current value of the variable
-            bar.set_height(self.input_variables[name]['value'])
+            # Use the property to get the current value of the variable
+            if hasattr(self, name):  # Check if the property exists
+                bar.set_height(getattr(self, name))
+            else:
+                raise AttributeError(f"Property '{name}' does not exist in the display class.")
 
-        # Update the Qe bar if it exists
-        if self.qe_bar:
-            qe_value = self.input_variables['Qe']['value']
-            self.qe_bar[0].set_height(qe_value)
+        # Update the Qe bar
+        self.qe_bar[0].set_height(self.Qe)
 
-        # # Update the Qe_opt line dynamically
-        # if hasattr(self, 'qe_opt_line'):
-        #     qe_opt_value = self.variables['Qe_opt']['value']
-        #     bar_width = self.qe_bar[0].get_width()
-        #     qe_bar_x = len(self.variable_names)  # X-position of the Qe bar
-        #     x_start = qe_bar_x - bar_width / 2
-        #     x_end = qe_bar_x + bar_width / 2
-        #     self.qe_opt_line.set_data([x_start, x_end], [qe_opt_value, qe_opt_value])
-
-
+        
     async def start_async(self, queue):
-        """Asynchronous plotting without blitting."""
+        """Asynchronous plotting"""
         def update(_):
             """Update the plot."""
             self.update_bars(_)
@@ -154,7 +235,7 @@ class Display:
         ani = FuncAnimation(
             self.fig,
             update,
-            interval=10,  # Update interval in milliseconds
+            interval=1,  # Update interval in milliseconds
             cache_frame_data=False,
         )
 
@@ -167,11 +248,11 @@ class Display:
             for _ in range(batch_size):
                 data = await queue.get()
                 batch.append(data)
-
+            
             #Process the batch
             for data in batch:
                 detuning = data["Detuning"]
-                colour = self.calculated_variables['Plotting_Colour']
+                colour = self.Plotting_Colour
                 pg = data["Pg"]
                 detuning_FRT = data["Detuning FRT"]
                 pg_FRT = data["Pg FRT"]
@@ -182,8 +263,9 @@ class Display:
                 self.pg_data.append(pg)
                 self.detuning_FRT_data.append(detuning_FRT)
                 self.pg_FRT_data.append(pg_FRT)
-
+            # Force Matplotlib to redraw the canvas
+            self.fig.canvas.draw_idle()
             # Allow matplotlib to update the plot
-            plt.pause(0.001)
+            plt.pause(0.002)
             await asyncio.sleep(0)
 
