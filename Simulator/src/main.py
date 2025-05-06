@@ -12,7 +12,7 @@ async def main():
     
     # Define default ranges for variables
     variable_ranges = {
-        'FoM': (0.1, 100),
+        'FoM': (1, 100),
         'uphonics_range': (0.1, 100),
         'Qe': (10**7, 10**10),
         'tuning_range': (0.1, 100)

@@ -53,16 +53,17 @@ class Display:
         self.ax_pg_vs_detuning.legend()
 
         # Initialize the Pg vs time plot
-        self.ax_pg_vs_time.set_title("Power required vs Time")
+        self.ax_pg_vs_time.set_title("Detuning vs Time")
         self.ax_pg_vs_time.set_xlabel("Time [ms]")
-        self.ax_pg_vs_time.set_ylabel("RF Power [W]")
+        self.ax_pg_vs_time.set_ylabel("Detuning [Hz]")
         self.pg_vs_time_scatter = self.ax_pg_vs_time.scatter([], [], c=[], marker='.',label="Pg vs Time")
-        self.pg_vs_time_scatter_FRT = self.ax_pg_vs_time.scatter([], [], c=[], marker='.')
-        self.pg_vs_time_avg_line = self.ax_pg_vs_time.plot([], [], c='black', linestyle='-', label="Avg Pg vs Time")[0]
+        # self.pg_vs_time_scatter_FRT = self.ax_pg_vs_time.scatter([], [], c=[], marker='.')
+        # self.pg_vs_time_avg_line = self.ax_pg_vs_time.plot([], [], c='black', linestyle='-', label="Avg Pg vs Time")[0]
         self.ax_pg_vs_time.legend()
 
         # Data for Pg vs detuning
         maxlen = 1130
+        maxlen = 400
         self.pg_colours = deque(maxlen=maxlen)
         self.detuning_data = deque(maxlen=maxlen)
         self.pg_data = deque(maxlen=maxlen)
@@ -70,6 +71,7 @@ class Display:
         self.pg_FRT_data = deque(maxlen=maxlen)
         self.pg_avg_data = deque(maxlen=maxlen)
         self.pg_FRT_avg_data = deque(maxlen=maxlen)
+        self.detuning_both_data = deque(maxlen=maxlen)  # Combined detuning data for both FRT and non-FRT
         
         # Additional Data for Pg vs time
         self.time_data = deque(maxlen=maxlen)
@@ -324,7 +326,10 @@ class Display:
                 x_scale = self.ax_pg_vs_detuning.get_xlim()[1]
                 if  largest_detuning > x_scale or largest_detuning<0.8*x_scale:
                     self.ax_pg_vs_detuning.set_xlim(-1.05*largest_detuning, 1.05*largest_detuning)
-                largest_power = max(self.pg_data)
+                if self.FRT_On:
+                    largest_power = max([max(self.pg_FRT_data),1.05*min(self.pg_data)])
+                else:
+                    largest_power = max(self.pg_data)
                 largest_yscale = self.ax_pg_vs_detuning.get_ylim()[1]
                 if largest_power > largest_yscale or largest_power<0.8*largest_yscale:
                     self.ax_pg_vs_detuning.set_ylim(0, 1.05*largest_power)
@@ -332,37 +337,40 @@ class Display:
             #Update Pg vs time plot
             if len(self.time_data) > 0 and len(self.pg_data) > 0:
                 # Update the Pg vs time data with the latest time and Pg values
-                self.pg_vs_time_scatter.set_offsets(np.column_stack((self.time_data, self.pg_data)))
-                self.pg_vs_time_avg_line.set_data(self.time_data, self.pg_avg_data)
-                self.pg_vs_time_scatter_FRT.set_offsets(np.column_stack((self.time_data, self.pg_FRT_data)))
-                if self.FRT_On:
-                    #For FRT Off Data set the colour to light grey and transparency to 0.5
-                    #For FRT On Data set colour to pg_colours and transparency to 1.0
-                    self.pg_vs_time_scatter.set_alpha(0.5)
-                    self.pg_vs_time_scatter.set_color('lightgrey')
-                    self.pg_vs_time_avg_line.set_alpha(0.5)
-                    self.pg_vs_time_avg_line.set_color('lightgrey')
-                    self.pg_vs_time_scatter_FRT.set_alpha(1.0)
-                    self.pg_vs_time_scatter_FRT.set_color(self.pg_colours)
-                else:
-                    #For FRT Off Data set the colour to pg_colours and transparency to 1.0
-                    #For FRT On Data set colour to light grey and transparency to 0.5
-                    self.pg_vs_time_scatter.set_alpha(1.0)
-                    self.pg_vs_time_scatter.set_color(self.pg_colours)
-                    self.pg_vs_time_avg_line.set_alpha(1.0)
-                    self.pg_vs_time_avg_line.set_color(self.pg_colours[-1])
-                    self.pg_vs_time_scatter_FRT.set_alpha(0.5)
-                    self.pg_vs_time_scatter_FRT.set_color('lightgrey')
+                self.pg_vs_time_scatter.set_offsets(np.column_stack((self.time_data, self.detuning_both_data)))
+                # self.pg_vs_time_avg_line.set_data(self.time_data, self.pg_avg_data)
+                # self.pg_vs_time_scatter_FRT.set_offsets(np.column_stack((self.time_data, self.pg_FRT_data)))
+                # if self.FRT_On:
+                #     #For FRT Off Data set the colour to light grey and transparency to 0.5
+                #     #For FRT On Data set colour to pg_colours and transparency to 1.0
+                #     self.pg_vs_time_scatter.set_alpha(0.5)
+                self.pg_vs_time_scatter.set_color('black')
+                #     self.pg_vs_time_avg_line.set_alpha(0.5)
+                #     self.pg_vs_time_avg_line.set_color('lightgrey')
+                #     self.pg_vs_time_scatter_FRT.set_alpha(1.0)
+                #     self.pg_vs_time_scatter_FRT.set_color(self.pg_colours)
+                # else:
+                #     #For FRT Off Data set the colour to pg_colours and transparency to 1.0
+                #     #For FRT On Data set colour to light grey and transparency to 0.5
+                #     self.pg_vs_time_scatter.set_alpha(1.0)
+                #     self.pg_vs_time_scatter.set_color(self.pg_colours)
+                #     self.pg_vs_time_avg_line.set_alpha(1.0)
+                #     self.pg_vs_time_avg_line.set_color(self.pg_colours[-1])
+                #     self.pg_vs_time_scatter_FRT.set_alpha(0.5)
+                #     self.pg_vs_time_scatter_FRT.set_color('lightgrey')
                                 
                 # Update limits only if necessary
                 largest_time = max(self.time_data)
                 min_time = min(self.time_data)
                 self.ax_pg_vs_time.set_xlim(min_time, largest_time)
                 
-                largest_power = max(self.pg_data)
+                #largest_power = max(self.pg_data)
+                largest_detuning = max(self.detuning_data)
+                smallest_detuning = min(self.detuning_data)
                 largest_yscale = self.ax_pg_vs_time.get_ylim()[1]
-                if largest_power > largest_yscale or largest_power<0.8*largest_yscale:
-                    self.ax_pg_vs_time.set_ylim(0, 1.05*largest_power)
+                smallest_yscale = self.ax_pg_vs_time.get_ylim()[0]
+                if largest_detuning > largest_yscale or smallest_detuning<smallest_yscale:
+                    self.ax_pg_vs_time.set_ylim(smallest_detuning, largest_detuning)
                 
                 
         # Use FuncAnimation without blitting
@@ -409,6 +417,12 @@ class Display:
                 self.time_data.append(time)
                 self.pg_avg_data.append(pg_avg)
                 self.pg_FRT_avg_data.append(pg_FRT_avg)
+                if self.FRT_On:
+                    # Append the detuning_FRT data to the combined buffer
+                    self.detuning_both_data.append(detuning_FRT)
+                else:
+                    # Append the detuning data to the combined buffer
+                    self.detuning_both_data.append(detuning)
             # Force Matplotlib to redraw the canvas
             self.fig.canvas.draw_idle()
             # Allow matplotlib to update the plot
