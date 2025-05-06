@@ -20,10 +20,10 @@ async def main():
 
     # Initialize variables with default values and ranges
     input_variables = {
-        'FoM': {'value': 20, 'range': variable_ranges['FoM']},
+        'FoM': {'value': 40, 'range': variable_ranges['FoM']},
+        'tuning_range': {'value': 20, 'range': variable_ranges['tuning_range']},
         'uphonics_range': {'value': 20, 'range': variable_ranges['uphonics_range']},
         'Qe': {'value': 4*10**8, 'range': variable_ranges['Qe']},
-        'tuning_range': {'value': 25, 'range': variable_ranges['tuning_range']},
         'FRT_On': {'value':0}
     }
 

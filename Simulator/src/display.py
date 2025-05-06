@@ -47,7 +47,9 @@ class Display:
         self.ax_pg_vs_detuning.set_xlabel("Detuning [Hz]")
         self.ax_pg_vs_detuning.set_ylabel("RF Power [W]")
         self.pg_vs_detuning_scatter = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.',label="Pg vs Detuning")
+        self.pg_vs_detuning_scatter_FRT = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.')
         self.pg_vs_detuning_avg_line = self.ax_pg_vs_detuning.plot([], [], c='black', linestyle='-', label="Avg Pg vs Detuning")[0]
+        self.pg_vs_detuning_avg_line_FRT = self.ax_pg_vs_detuning.plot([], [], c='black', linestyle='-')[0]
         self.ax_pg_vs_detuning.legend()
 
         # Initialize the Pg vs time plot
@@ -55,6 +57,7 @@ class Display:
         self.ax_pg_vs_time.set_xlabel("Time [ms]")
         self.ax_pg_vs_time.set_ylabel("RF Power [W]")
         self.pg_vs_time_scatter = self.ax_pg_vs_time.scatter([], [], c=[], marker='.',label="Pg vs Time")
+        self.pg_vs_time_scatter_FRT = self.ax_pg_vs_time.scatter([], [], c=[], marker='.')
         self.pg_vs_time_avg_line = self.ax_pg_vs_time.plot([], [], c='black', linestyle='-', label="Avg Pg vs Time")[0]
         self.ax_pg_vs_time.legend()
 
@@ -81,6 +84,11 @@ class Display:
     def Qe_opt(self):
         """Dynamically retrieve the value of Qe_opt from calculated variables."""
         return self._get_cached_calculated_variables('Qe_opt')
+    
+    @property
+    def Qe_opt_FRT(self):
+        """Dynamically retrieve the value of Qe_opt_FRT from calculated variables."""
+        return self._get_cached_calculated_variables('Qe_opt_FRT')
     
     @property
     def Qe(self):
@@ -248,7 +256,10 @@ class Display:
         # Update the Qe bar
         self.qe_bar[0].set_height(self.Qe)
         # Update the y-value of the Qe_opt line
-        qe_opt_value = self.Qe_opt  # Get the updated value of Qe_opt
+        if self.FRT_On:
+            qe_opt_value = self.Qe_opt_FRT  # Get the updated value of Qe_opt_FRT
+        else:
+            qe_opt_value = self.Qe_opt  # Get the updated value of Qe_opt
         self.qe_opt_line.set_ydata([qe_opt_value, qe_opt_value])  # Update the y-data
 
         
@@ -263,8 +274,28 @@ class Display:
             if len(self.detuning_data) > 0 and len(self.pg_data) > 0:
                 # Update the Pg vs detuning data with the latest detuning and Pg values
                 self.pg_vs_detuning_scatter.set_offsets(np.column_stack((self.detuning_data, self.pg_data)))
-                self.pg_vs_detuning_scatter.set_color(self.pg_colours)
+                self.pg_vs_detuning_scatter_FRT.set_offsets(np.column_stack((self.detuning_FRT_data, self.pg_FRT_data)))
                 self.pg_vs_detuning_avg_line.set_data([min(self.detuning_data),max(self.detuning_data)], [self.pg_avg_data[-1],self.pg_avg_data[-1]])
+                if self.FRT_On:
+                    #For FRT Off Data set colour to light grey and transparency to 0.5
+                    #For FRT On Data set coloour to pg_colours and transparency to 1.0
+                    self.pg_vs_detuning_scatter.set_alpha(0.5)
+                    self.pg_vs_detuning_scatter.set_color('lightgrey')
+                    self.pg_vs_detuning_avg_line.set_alpha(0.5)
+                    self.pg_vs_detuning_avg_line.set_color('lightgrey')
+                    self.pg_vs_detuning_scatter_FRT.set_alpha(1.0)
+                    self.pg_vs_detuning_scatter_FRT.set_color(self.pg_colours)
+                else:
+                    #For FRT Off Data set the colour to pg_colours and transparency to 1.0
+                    #For FRT On Data set colour to light grey and transparency to 0.5
+                    self.pg_vs_detuning_scatter.set_alpha(1.0)
+                    self.pg_vs_detuning_scatter.set_color(self.pg_colours)
+                    self.pg_vs_detuning_avg_line.set_alpha(1.0)
+                    self.pg_vs_detuning_avg_line.set_color(self.pg_colours[-1])
+                    self.pg_vs_detuning_scatter_FRT.set_alpha(0.5)
+                    self.pg_vs_detuning_scatter_FRT.set_color('lightgrey')
+                
+                
                 
                 # Update limits only if necessary
                 largest_detuning = max(np.abs(min(self.detuning_data)),max(self.detuning_data))
@@ -280,9 +311,27 @@ class Display:
             if len(self.time_data) > 0 and len(self.pg_data) > 0:
                 # Update the Pg vs time data with the latest time and Pg values
                 self.pg_vs_time_scatter.set_offsets(np.column_stack((self.time_data, self.pg_data)))
-                self.pg_vs_time_scatter.set_color(self.pg_colours)
                 self.pg_vs_time_avg_line.set_data(self.time_data, self.pg_avg_data)
-                
+                self.pg_vs_time_scatter_FRT.set_offsets(np.column_stack((self.time_data, self.pg_FRT_data)))
+                if self.FRT_On:
+                    #For FRT Off Data set the colour to light grey and transparency to 0.5
+                    #For FRT On Data set colour to pg_colours and transparency to 1.0
+                    self.pg_vs_time_scatter.set_alpha(0.5)
+                    self.pg_vs_time_scatter.set_color('lightgrey')
+                    self.pg_vs_time_avg_line.set_alpha(0.5)
+                    self.pg_vs_time_avg_line.set_color('lightgrey')
+                    self.pg_vs_time_scatter_FRT.set_alpha(1.0)
+                    self.pg_vs_time_scatter_FRT.set_color(self.pg_colours)
+                else:
+                    #For FRT Off Data set the colour to pg_colours and transparency to 1.0
+                    #For FRT On Data set colour to light grey and transparency to 0.5
+                    self.pg_vs_time_scatter.set_alpha(1.0)
+                    self.pg_vs_time_scatter.set_color(self.pg_colours)
+                    self.pg_vs_time_avg_line.set_alpha(1.0)
+                    self.pg_vs_time_avg_line.set_color(self.pg_colours[-1])
+                    self.pg_vs_time_scatter_FRT.set_alpha(0.5)
+                    self.pg_vs_time_scatter_FRT.set_color('lightgrey')
+                                
                 # Update limits only if necessary
                 largest_time = max(self.time_data)
                 min_time = min(self.time_data)

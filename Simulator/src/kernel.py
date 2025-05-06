@@ -167,7 +167,7 @@ class Kernel:
         Ig, Ig_FRT = self.IgeiPhi(detuning,detuning_FRT)
         Pg = self.Qe*RQ*np.abs(Ig)**2/2
         Pg_FRT = self.Qe*RQ*np.abs(Ig_FRT)**2/2
-        return Pg, Pg_FRT
+        return Pg, Pg_FRT/4.4  # Divide by 4.4 for FRT power temp hack
 
     def DeltaOmega_t(self):
         """Get the next detuning and time pair from the generator."""
@@ -216,6 +216,11 @@ class Kernel:
             time, detuning, detuning_FRT = self.DeltaOmega_t()
             Pgen, Pgen_FRT = self.Pg(detuning, detuning_FRT)
             Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
+            if self.FRT_On:
+                print(f"FoM is {self.FoM}")
+                print(f"Power is {Pg_FRT_Avg}")
+            else:
+                print(f"Power is {Pg_Avg}")
             await results_queue.put({"Time": time,
                              "Detuning": detuning, "Pg": Pgen,
                              "Detuning FRT": detuning_FRT, "Pg FRT": Pgen_FRT,

@@ -10,8 +10,8 @@ class MidiDriver:
         self.input_variables = input_variables
         self.midi_mappings = {
             36: "FoM",  # Slider 1 -> FoM
-            37: "uphonics_range",  # Slider 2 -> uphonics_range
-            38: "tuning_range",  # Slider 4 -> tuning_range
+            37: "tuning_range",  # Slider 2 -> tuning_range
+            38: "microphonics_range",  # Slider 4 -> microphonics_range
             39: "Qe",  # Slider 3 -> Qe
             40: "FRT_On",  # Button 1 -> FRT On
         }
