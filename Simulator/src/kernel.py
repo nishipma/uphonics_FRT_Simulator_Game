@@ -216,11 +216,7 @@ class Kernel:
             time, detuning, detuning_FRT = self.DeltaOmega_t()
             Pgen, Pgen_FRT = self.Pg(detuning, detuning_FRT)
             Pg_Avg, Pg_FRT_Avg = self.AvergaePower(Pgen, Pgen_FRT)
-            if self.FRT_On:
-                print(f"FoM is {self.FoM}")
-                print(f"Power is {Pg_FRT_Avg}")
-            else:
-                print(f"Power is {Pg_Avg}")
+
             await results_queue.put({"Time": time,
                              "Detuning": detuning, "Pg": Pgen,
                              "Detuning FRT": detuning_FRT, "Pg FRT": Pgen_FRT,

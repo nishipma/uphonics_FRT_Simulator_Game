@@ -47,7 +47,7 @@ class Display:
         self.ax_pg_vs_detuning.set_xlabel("Detuning [Hz]")
         self.ax_pg_vs_detuning.set_ylabel("RF Power [W]")
         self.pg_vs_detuning_scatter = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.',label="Pg vs Detuning")
-        self.pg_vs_detuning_scatter_FRT = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='.')
+        self.pg_vs_detuning_scatter_FRT = self.ax_pg_vs_detuning.scatter([], [], c=[], marker='x',linewidths = 1.5,s = 100)
         self.pg_vs_detuning_avg_line = self.ax_pg_vs_detuning.plot([], [], c='black', linestyle='-', label="Avg Pg vs Detuning")[0]
         self.pg_vs_detuning_avg_line_FRT = self.ax_pg_vs_detuning.plot([], [], c='black', linestyle='-')[0]
         self.ax_pg_vs_detuning.legend()
@@ -190,10 +190,10 @@ class Display:
 
     def _initialize_primary_variables(self):
         """Extract and organize primary variable names and values."""
-        self.variable_names = ['FRT_On'] + [
+        self.variable_names = [
             name for name in self.input_variables.keys() if name not in ['Qe', 'FRT_On']
         ]
-        self.variable_values = [self.input_variables['FRT_On']['value']] + [
+        self.variable_values = [
             var['value'] for name, var in self.input_variables.items() if name not in ['Qe', 'FRT_On']
         ]
 
@@ -258,13 +258,33 @@ class Display:
         # Update the y-value of the Qe_opt line
         if self.FRT_On:
             qe_opt_value = self.Qe_opt_FRT  # Get the updated value of Qe_opt_FRT
+            # Update the title to indicate FRT On increase font size and make it bold
+            self.ax_bars.set_title("FRT On!")
+            self.ax_bars.title.set_fontsize(16)
+            self.ax_bars.title.set_weight('bold')
+            # Set colour of FoM and tuning_range bar to grey
+            self.bars[0].set_color('blue')
+            self.bars[1].set_color('blue')
         else:
             qe_opt_value = self.Qe_opt  # Get the updated value of Qe_opt
+            self.ax_bars.set_title("FRT Off!")
+            self.ax_bars.title.set_fontsize(16)
+            self.ax_bars.title.set_weight('normal')
+            self.bars[0].set_color('lightgrey')
+            self.bars[1].set_color('lightgrey')
         self.qe_opt_line.set_ydata([qe_opt_value, qe_opt_value])  # Update the y-data
 
         
     async def start_async(self, queue):
         """Asynchronous plotting"""
+        self.avg_power_text = self.ax_pg_vs_detuning.text(
+            0.95, 0.05, "", 
+            transform=self.ax_pg_vs_detuning.transAxes, 
+            fontsize=10, 
+            verticalalignment='bottom', 
+            horizontalalignment='right', 
+            bbox=dict(facecolor='white', alpha=0.5, edgecolor='none')
+        )
         def update(_):
             """Update the plot."""
             #Update bar chart
@@ -285,6 +305,7 @@ class Display:
                     self.pg_vs_detuning_avg_line.set_color('lightgrey')
                     self.pg_vs_detuning_scatter_FRT.set_alpha(1.0)
                     self.pg_vs_detuning_scatter_FRT.set_color(self.pg_colours)
+                    self.avg_power_text.set_text(f"Avg RF Power (FRT On): {self.pg_FRT_avg_data[-1]:.2f} W")
                 else:
                     #For FRT Off Data set the colour to pg_colours and transparency to 1.0
                     #For FRT On Data set colour to light grey and transparency to 0.5
@@ -294,6 +315,7 @@ class Display:
                     self.pg_vs_detuning_avg_line.set_color(self.pg_colours[-1])
                     self.pg_vs_detuning_scatter_FRT.set_alpha(0.5)
                     self.pg_vs_detuning_scatter_FRT.set_color('lightgrey')
+                    self.avg_power_text.set_text(f"Avg RF Power (FRT Off): {self.pg_avg_data[-1]:.2f} W")
                 
                 
                 
@@ -376,6 +398,7 @@ class Display:
                     offset += offset_step
                 time = data["Time"]+offset
                 pg_avg = data["Pg Avg"]
+                pg_FRT_avg = data["Pg FRT Avg"]
 
                 # Append the new data to the circular buffers
                 self.pg_colours.append(colour)
@@ -385,6 +408,7 @@ class Display:
                 self.pg_FRT_data.append(pg_FRT)
                 self.time_data.append(time)
                 self.pg_avg_data.append(pg_avg)
+                self.pg_FRT_avg_data.append(pg_FRT_avg)
             # Force Matplotlib to redraw the canvas
             self.fig.canvas.draw_idle()
             # Allow matplotlib to update the plot
